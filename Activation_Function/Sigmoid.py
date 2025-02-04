@@ -11,6 +11,7 @@ print(x)
 
 # Sigmoid function으로 출력값 변환
 y = sigmoid(x)
+print(y)
 
 # Sigmoid function 시각화
 plt.figure(figsize=(8, 6))
