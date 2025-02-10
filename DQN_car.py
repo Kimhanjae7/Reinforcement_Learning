@@ -1,16 +1,21 @@
 import gym
 import numpy as np
+
+if not hasattr(np, 'bool'):
+    np.bool = bool  # np.bool이 없으면 bool로 대체
+
 import random
 import tensorflow as tf
 from tensorflow import keras
 from collections import deque
 
+
 # 자율주행 환경 설정 (CarRacing 환경 사용)
-env = gym.make("CarRacing-v2")
+env = gym.make("CarRacing-v2", render_mode="human")
 
 # 상태와 행동 개수 정의
 state_size = env.observation_space.shape
-action_size = env.action_space.n
+action_size = env.action_space.shape[0]  # 연속형 행동 공간에서는 .shape[0] 사용
 
 # 경험 저장을 위한 버퍼
 memory = deque(maxlen=2000)
@@ -29,9 +34,9 @@ def build_model():
         keras.layers.MaxPooling2D((2, 2)),
         keras.layers.Flatten(),
         keras.layers.Dense(64, activation='relu'),
-        keras.layers.Dense(action_size, activation='linear')
+        keras.layers.Dense(action_size, activation='linear')  # 연속형 행동 공간에서는 선형 출력 사용
     ])
-    model.compile(loss="mse", optimizer=keras.optimizers.Adam(lr=0.001))
+    model.compile(loss="mse", optimizer=keras.optimizers.Adam(learning_rate=0.001))  # lr 대신 learning_rate 사용
     return model
 
 # 모델 생성
@@ -39,23 +44,25 @@ model = build_model()
 
 # DQN 학습 함수
 def train():
+    global epsilon
     for episode in range(1000):  # 1000번 학습
-        state = env.reset()
-        state = np.reshape(state, [1, state_size])
+        state, _ = env.reset()  # Gym 최신 버전에 맞게 수정
+        state = np.reshape(state, [1, *state_size])
 
         for time in range(500):  # 최대 500 프레임 실행
             env.render()  # 화면 출력
 
             # 행동 선택 (탐험 vs. 활용)
             if np.random.rand() <= epsilon:
-                action = random.randrange(action_size)
+                action = env.action_space.sample()  # 연속형 행동 공간에서는 sample() 사용
             else:
-                q_values = model.predict(state)
-                action = np.argmax(q_values[0])
+                q_values = model.predict(state, verbose=0)
+                action = q_values[0]  # 연속형 행동 값 그대로 사용
 
             # 행동 수행 및 보상 확인
-            next_state, reward, done, _ = env.step(action)
-            next_state = np.reshape(next_state, [1, state_size])
+            next_state, reward, done, truncated, _ = env.step(action)  # 최신 Gym 버전에 맞게 수정
+            done = done or truncated  # 중단 상태 처리 추가
+            next_state = np.reshape(next_state, [1, *state_size])
 
             # 경험 저장
             memory.append((state, action, reward, next_state, done))
@@ -71,13 +78,12 @@ def train():
             for state, action, reward, next_state, done in minibatch:
                 target = reward
                 if not done:
-                    target = reward + gamma * np.max(model.predict(next_state)[0])
-                target_f = model.predict(state)
-                target_f[0][action] = target
+                    target = reward + gamma * np.max(model.predict(next_state, verbose=0)[0])
+                target_f = model.predict(state, verbose=0)
+                target_f[0] = target  # 연속형 행동 공간에서는 전체 값을 업데이트
                 model.fit(state, target_f, epochs=1, verbose=0)
 
         # 탐험률 감소
-        global epsilon
         if epsilon > epsilon_min:
             epsilon *= epsilon_decay
 
