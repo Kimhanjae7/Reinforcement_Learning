@@ -1,14 +1,13 @@
 import gym
 import numpy as np
-
-if not hasattr(np, 'bool'):
-    np.bool = bool  # np.bool이 없으면 bool로 대체
-
 import random
 import tensorflow as tf
 from tensorflow import keras
 from collections import deque
 
+
+if not hasattr(np, 'bool'):
+    np.bool = bool  # np.bool이 없으면 bool로 대체
 
 # 자율주행 환경 설정 (CarRacing 환경 사용)
 env = gym.make("CarRacing-v2", render_mode="human")
@@ -36,7 +35,7 @@ def build_model():
         keras.layers.Dense(64, activation='relu'),
         keras.layers.Dense(action_size, activation='linear')  # 연속형 행동 공간에서는 선형 출력 사용
     ])
-    model.compile(loss="mse", optimizer=keras.optimizers.Adam(learning_rate=0.001))  # lr 대신 learning_rate 사용
+    model.compile(loss="mse", optimizer=keras.optimizers.Adam(learning_rate=0.001))
     return model
 
 # 모델 생성
@@ -45,23 +44,25 @@ model = build_model()
 # DQN 학습 함수
 def train():
     global epsilon
+    print("🔹 Training started...", flush=True)
+
     for episode in range(1000):  # 1000번 학습
-        state, _ = env.reset()  # Gym 최신 버전에 맞게 수정
+        print(f"🔹 Episode {episode} started (epsilon: {epsilon:.4f})", flush=True)
+        state, _ = env.reset()
         state = np.reshape(state, [1, *state_size])
 
         for time in range(500):  # 최대 500 프레임 실행
-            env.render()  # 화면 출력
-
             # 행동 선택 (탐험 vs. 활용)
             if np.random.rand() <= epsilon:
-                action = env.action_space.sample()  # 연속형 행동 공간에서는 sample() 사용
+                action = env.action_space.sample()  # 랜덤 행동 선택
             else:
                 q_values = model.predict(state, verbose=0)
-                action = q_values[0]  # 연속형 행동 값 그대로 사용
+                action = np.tanh(q_values[0])  # 행동을 [-1, 1] 범위로 정규화
+                action = np.clip(action, -1, 1)  # 안전한 범위 유지
 
             # 행동 수행 및 보상 확인
-            next_state, reward, done, truncated, _ = env.step(action)  # 최신 Gym 버전에 맞게 수정
-            done = done or truncated  # 중단 상태 처리 추가
+            next_state, reward, done, truncated, _ = env.step(action)
+            done = done or truncated
             next_state = np.reshape(next_state, [1, *state_size])
 
             # 경험 저장
@@ -69,7 +70,7 @@ def train():
             state = next_state
 
             if done:
-                print(f"Episode: {episode}, Score: {time}, Epsilon: {epsilon}")
+                print(f" Episode {episode} finished - Score: {time}, Epsilon: {epsilon:.4f}", flush=True)
                 break
 
         # 경험 학습 (Replay)
@@ -88,4 +89,5 @@ def train():
             epsilon *= epsilon_decay
 
 # 학습 시작
-train()
+if __name__ == "__main__":
+    train()
