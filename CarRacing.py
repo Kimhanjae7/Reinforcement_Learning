@@ -51,8 +51,9 @@ def train():
         state, _ = env.reset()
         state = np.reshape(state, [1, *state_size])
 
+        total_reward = 0  # 🚀 스코어(총 보상) 추적
+
         for time in range(500):  # 최대 500 프레임 실행
-            # 행동 선택 (탐험 vs. 활용)
             if np.random.rand() <= epsilon:
                 action = env.action_space.sample()  # 랜덤 행동 선택
             else:
@@ -60,18 +61,19 @@ def train():
                 action = np.tanh(q_values[0])  # 행동을 [-1, 1] 범위로 정규화
                 action = np.clip(action, -1, 1)  # 안전한 범위 유지
 
-            # 행동 수행 및 보상 확인
             next_state, reward, done, truncated, _ = env.step(action)
             done = done or truncated
             next_state = np.reshape(next_state, [1, *state_size])
 
-            # 경험 저장
+            total_reward += reward  # 🔹 총 보상 저장
             memory.append((state, action, reward, next_state, done))
             state = next_state
 
             if done:
-                print(f" Episode {episode} finished - Score: {time}, Epsilon: {epsilon:.4f}", flush=True)
-                break
+                break  # 🚀 `done=True`가 발생하면 종료
+
+        # 🔹 매 에피소드마다 점수 출력!
+        print(f"   →  Episode {episode} finished - Score: {total_reward:.2f}, Epsilon: {epsilon:.4f}", flush=True)
 
         # 경험 학습 (Replay)
         if len(memory) > batch_size:
