@@ -19,6 +19,7 @@ class PolicyNetwork(nn.Module):
         return self.fc(x)
 
 # PPO 업데이트 함수
+# 클리핑 : 기존의 정책과 너무 많이 벗어나지 않도록
 def ppo_update(policy, optimizer, states, actions, advantages, old_probs, clip_epsilon=0.2):
     new_probs = policy(states).gather(1, actions)
     ratio = new_probs / (old_probs + 1e-6)
